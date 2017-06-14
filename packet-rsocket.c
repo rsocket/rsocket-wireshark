@@ -50,6 +50,8 @@ static int hf_rsocket_data_mime_type = -1;
 static int hf_rsocket_req_n = -1;
 static int hf_rsocket_error_code = -1;
 static int hf_rsocket_keepalive_last_rcvd_pos = -1;
+static int hf_rsocket_resume_token_len = -1;
+static int hf_rsocket_resume_token = -1;
 
 // other flags
 static int hf_rsocket_ignore_flag = -1;
@@ -106,7 +108,7 @@ static const gchar *getFrameTypeName(const guint64 frame_type) {
 static gint read_rsocket_setup_frame(proto_tree *tree, tvbuff_t *tvb,
                                      gint offset) {
 
-  guint8 resume_flag = tvb_get_bits8(tvb, (offset + 1) * 8, 0);
+  gint8 resume_flag = tvb_get_bits8(tvb, (offset + 1) * 8, 1);
   proto_tree_add_item(tree, hf_rsocket_resume_flag, tvb, offset, 2,
                       ENC_BIG_ENDIAN);
   proto_tree_add_item(tree, hf_rsocket_lease_flag, tvb, offset, 2,
@@ -130,7 +132,13 @@ static gint read_rsocket_setup_frame(proto_tree *tree, tvbuff_t *tvb,
   offset += 4;
 
   if (resume_flag) {
-    // parse tokens
+    guint resume_token_len;
+    proto_tree_add_item_ret_uint(tree, hf_rsocket_resume_token_len, tvb, offset,
+                                 2, ENC_BIG_ENDIAN, &resume_token_len);
+    offset += 2;
+    proto_tree_add_item(tree, hf_rsocket_resume_token, tvb, offset,
+                        resume_token_len, ENC_STRING);
+    offset += resume_token_len;
   }
 
   guint mdata_mime_length;
@@ -429,6 +437,12 @@ void proto_register_rsocket(void) {
        {"Keepalive Last Received Position",
         "rsocket.keepalive_last_received_position", FT_UINT64, BASE_DEC, NULL,
         0x0, NULL, HFILL}},
+      {&hf_rsocket_resume_token_len,
+       {"Resume Token Length", "rsocket.resume.token.len", FT_UINT16, BASE_DEC,
+        NULL, 0x0, NULL, HFILL}},
+      {&hf_rsocket_resume_token,
+       {"Resume Token", "rsocket.resume.token", FT_STRING, STR_ASCII, NULL, 0x0,
+        NULL, HFILL}},
   };
 
   static gint *ett[] = {&ett_rsocket, &ett_rframe};
