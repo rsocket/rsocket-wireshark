@@ -47,18 +47,16 @@ endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-register_dissector_files(plugin.c
+register_plugin_files(plugin.c
 	plugin
 	${DISSECTOR_SRC}
 )
 
-add_plugin_library(rsocket)
+add_plugin_library(rsocket epan)
 
-install(TARGETS rsocket
-	LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/${CPACK_PACKAGE_NAME}/plugins/${CPACK_PACKAGE_VERSION} NAMELINK_SKIP
-	RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}/${CPACK_PACKAGE_NAME}/plugins/${CPACK_PACKAGE_VERSION}
-	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}/${CPACK_PACKAGE_NAME}/plugins/${CPACK_PACKAGE_VERSION}
-)
+target_link_libraries(rsocket epan)
+
+install_plugin(rsocket epan)
 
 file(GLOB DISSECTOR_HEADERS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "*.h")
 CHECKAPI(

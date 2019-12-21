@@ -234,8 +234,7 @@ static gint read_rsocket_req_n_frame(packet_info *pinfo, proto_tree *tree,
   return offset;
 }
 
-static gint read_rsocket_cancel_frame(proto_tree *tree, tvbuff_t *tvb,
-                                      gint offset) {
+static gint read_rsocket_cancel_frame(gint offset) {
   // no special flags
   offset += 2;
   // no other content
@@ -324,7 +323,7 @@ static int dissect_rsocket(tvbuff_t *tvb, packet_info *pinfo,
   } else if (frame_type == 0x08) {
     offset = read_rsocket_req_n_frame(pinfo, rframe_tree, tvb, offset);
   } else if (frame_type == 0x09) {
-    offset = read_rsocket_cancel_frame(rframe_tree, tvb, offset);
+    offset = read_rsocket_cancel_frame(offset);
   } else if (frame_type == 0x0A) {
     offset = read_rsocket_payload_frame(rframe_tree, tvb, offset);
   } else if (frame_type == 0x0B) {
