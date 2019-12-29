@@ -28,10 +28,13 @@
 #include <epan/expert.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <stdio.h>
 
-#define RSOCKET_TCP_PORT 9898 /* Not IANA registed */
+#define RSOCKET_TCP_PORT 9898 /* Not IANA registered */
+#define RSOCKET_WEBSOCKET_PORT 9897 /* Not IANA registered */
 
 static int proto_rsocket = -1;
+static int proto_rsocket_no_frame_length = -1;
 
 static int hf_rsocket_frame_len = -1;
 static int hf_rsocket_stream_id = -1;
@@ -94,6 +97,7 @@ static const value_string errorCodeNames[] = {
     {0x00000102, "CONNECTION_CLOSE"},  {0x00000201, "APPLICATION_ERROR"},
     {0x00000202, "REJECTED"},          {0x00000203, "CANCELED"},
     {0x00000204, "INVALID"},           {0xFFFFFFFF, "REJECTED"}};
+
 
 static const gchar *getFrameTypeName(const guint64 frame_type) {
   for (unsigned long i = 0; i < sizeof(frameTypeNames) / sizeof(value_string);
@@ -266,20 +270,44 @@ static gint read_rsocket_error_frame(proto_tree *tree, tvbuff_t *tvb,
 }
 
 static int dissect_rsocket(tvbuff_t *tvb, packet_info *pinfo,
-                           proto_tree *tree _U_, void *data _U_) {
-  col_set_str(pinfo->cinfo, COL_PROTOCOL, "RSOCKET");
+                           proto_tree *tree, gint frame_length_field_size);
+
+static int frame_length_field_dissector(tvbuff_t *tvb, packet_info *pinfo,
+                                        proto_tree *tree, void *data _U_) {
+    return dissect_rsocket(tvb, pinfo, tree, frame_len_field_size);
+}
+
+static int no_frame_length_field_dissector(tvbuff_t *tvb, packet_info *pinfo,
+                                           proto_tree *tree, void *data _U_) {
+    return dissect_rsocket(tvb, pinfo, tree, 0);
+}
+
+static int dissect_rsocket(tvbuff_t *tvb, packet_info *pinfo,
+                           proto_tree *tree, gint frame_length_field_size) {
+
   col_clear(pinfo->cinfo, COL_INFO);
+  col_set_str(pinfo->cinfo, COL_PROTOCOL, "RSOCKET");
 
   gint offset = 0;
+
   proto_item *ti =
       proto_tree_add_item(tree, proto_rsocket, tvb, offset, -1, ENC_NA);
   proto_tree *rsocket_tree = proto_item_add_subtree(ti, ett_rsocket);
 
   guint32 frame_len;
-  proto_tree_add_item_ret_uint(rsocket_tree, hf_rsocket_frame_len, tvb, offset,
-                               frame_len_field_size, ENC_BIG_ENDIAN,
-                               &frame_len);
-  offset += frame_len_field_size;
+
+  if(frame_length_field_size > 0) {
+    proto_tree_add_item_ret_uint(rsocket_tree,
+                                 hf_rsocket_frame_len,
+                                 tvb,
+                                 offset,
+                                 frame_length_field_size,
+                                 ENC_BIG_ENDIAN,
+                                 &frame_len);
+    offset += frame_length_field_size;
+  } else {
+    frame_len = tvb_captured_length(tvb);
+  }
 
   proto_item *rframe;
   proto_tree *rframe_tree = proto_tree_add_subtree(
@@ -343,17 +371,18 @@ static int dissect_rsocket(tvbuff_t *tvb, packet_info *pinfo,
     col_append_fstr(pinfo->cinfo, COL_INFO, " MetadataLen=%d", mdata_len);
   }
 
-  guint32 data_len = frame_len + 3 - offset;
+  guint32 data_len = frame_len + frame_length_field_size - offset;
+
   if (data_len > 0) {
     proto_tree_add_item(rframe_tree, hf_rsocket_data, tvb, offset, data_len,
                         ENC_BIG_ENDIAN);
     offset += data_len;
+
     col_append_fstr(pinfo->cinfo, COL_INFO, " DataLen=%d", data_len);
   }
 
-  if ((guint32)offset != frame_len + frame_len_field_size) {
-    expert_add_info_format(pinfo, tree, &ei_rsocket_frame_len_mismatch,
-                           "Frame Length doesnt match");
+  if ((guint32)offset != frame_len + frame_length_field_size) {
+    expert_add_info_format(pinfo, tree, &ei_rsocket_frame_len_mismatch, "Frame Length doesnt match");
   }
 
   return tvb_captured_length(tvb);
@@ -450,6 +479,13 @@ void proto_register_rsocket(void) {
                                           "RSocket",          /* short name */
                                           "rsocket"           /* abbrev     */
                                           );
+
+  proto_rsocket_no_frame_length = proto_register_protocol_in_name_only("RSocket - No Frame Length Field (WebSocket and Aeron)",
+                                                                  "RSocket (websocket/aeron)",
+                                                                  "rsocket",
+                                                                  proto_rsocket,
+                                                                  FT_PROTOCOL);
+
   proto_register_field_array(proto_rsocket, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
@@ -464,8 +500,14 @@ void proto_register_rsocket(void) {
 }
 
 void proto_reg_handoff_rsocket(void) {
-  static dissector_handle_t rsocket_handle;
 
-  rsocket_handle = create_dissector_handle(dissect_rsocket, proto_rsocket);
+  static dissector_handle_t rsocket_handle,
+                            rsocket_no_frame_length_handle;
+
+  rsocket_handle = create_dissector_handle(frame_length_field_dissector, proto_rsocket);
+  rsocket_no_frame_length_handle = create_dissector_handle(no_frame_length_field_dissector, proto_rsocket_no_frame_length);
+
   dissector_add_uint("tcp.port", RSOCKET_TCP_PORT, rsocket_handle);
+  dissector_add_uint("ws.port", RSOCKET_WEBSOCKET_PORT, rsocket_no_frame_length_handle);
 }
+
