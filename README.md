@@ -16,10 +16,12 @@ Currently it supports all RSocket frames, except resumption.
 set(CUSTOM_PLUGIN_SRC_DIR plugins/epan/rsocket)
 ```
 - Follow the build instructions of Wireshark for your OS setup
-- Copy the built rsocket.so to the Plugins folder of wireshark. This depends on OS - on macOS it is typically ~/.config/wireshark/plugins or ~/.wireshark/plugins.
+- Copy the built rsocket.so to the Plugins folder of wireshark. This depends on OS - on macOS it is typically ~/.config/wireshark/plugins or ~/.wireshark/plugins. You can see the location of the plugin folder by opening wireshark and going to __About -> __Folders.
 
 # Notes
 
-- This code has been tested with latest stable release of Wireshark (2.2.5).
-- To enable RSocket dissector in Wireshark, go to __Analyze -> Decode As__ in Wireshark UI and add identifiers for your packet flow (say TCP port). Select RSocket as the decoding protocol.
+- This code has been tested with latest stable release of Wireshark (3.2.0)
 
+- To enable the RSocket dissector in Wireshark either
+    - Change the TCP or websocket port in: __Edit -> __Preferences -> __RSocket. 
+    - Or use  __Analyze -> Decode As__  UI and add identifiers for your packet flow (say TCP port) and select RSocket as the decoding protocol (only available for raw TCP). 
