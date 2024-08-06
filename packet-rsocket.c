@@ -274,9 +274,22 @@ static gint read_rsocket_error_frame(proto_tree *tree, tvbuff_t *tvb,
 static int dissect_rsocket(tvbuff_t *tvb, packet_info *pinfo,
                            proto_tree *tree, gint frame_length_field_size);
 
+static unsigned get_rsocket_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, 
+                            int offset, void *data _U_) {
+  return (unsigned)tvb_get_ntohi24(tvb, offset) + frame_len_field_size;
+}
+
+static int dissect_rsocket_message(tvbuff_t *tvb, packet_info *pinfo _U_, 
+                      proto_tree *tree _U_, void *data _U_) {
+    dissect_rsocket(tvb, pinfo, tree, frame_len_field_size);
+    return tvb_captured_length(tvb);
+}
+
 static int frame_length_field_dissector(tvbuff_t *tvb, packet_info *pinfo,
                                         proto_tree *tree, void *data _U_) {
-    return dissect_rsocket(tvb, pinfo, tree, frame_len_field_size);
+    tcp_dissect_pdus(tvb, pinfo, tree, true, frame_len_field_size,
+                     get_rsocket_message_len, dissect_rsocket_message, data);
+    return tvb_captured_length(tvb);
 }
 
 static int no_frame_length_field_dissector(tvbuff_t *tvb, packet_info *pinfo,
@@ -399,10 +412,10 @@ void proto_register_rsocket(void) {
        {"Metadata Length", "rsocket.metadata_len", FT_UINT24, BASE_DEC, NULL,
         0x0, NULL, HFILL}},
       {&hf_rsocket_mdata,
-       {"Metadata", "rsocket.metadata", FT_STRING, STR_ASCII, NULL, 0x0, NULL,
+       {"Metadata", "rsocket.metadata", FT_STRING, BASE_NONE, NULL, 0x0, NULL,
         HFILL}},
       {&hf_rsocket_data,
-       {"Data", "rsocket.data", FT_STRING, STR_ASCII, NULL, 0x0, NULL, HFILL}},
+       {"Data", "rsocket.data", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL}},
       {&hf_rsocket_ignore_flag,
        {"Ignore", "rsocket.flags.ignore", FT_BOOLEAN, 16, NULL, 0x0200, NULL,
         HFILL}},
@@ -443,13 +456,13 @@ void proto_register_rsocket(void) {
        {"Metadata MIME Length", "rsocket.mdata_mime_length", FT_UINT8, BASE_DEC,
         NULL, 0x0, NULL, HFILL}},
       {&hf_rsocket_mdata_mime_type,
-       {"Metadata MIME Type", "rsocket.mdata_mime_type", FT_STRING, STR_ASCII,
+       {"Metadata MIME Type", "rsocket.mdata_mime_type", FT_STRING, BASE_NONE,
         NULL, 0x0, NULL, HFILL}},
       {&hf_rsocket_data_mime_length,
        {"Data MIME Length", "rsocket.data_mime_length", FT_UINT8, BASE_DEC,
         NULL, 0x0, NULL, HFILL}},
       {&hf_rsocket_data_mime_type,
-       {"Data MIME Type", "rsocket.data_mime_type", FT_STRING, STR_ASCII, NULL,
+       {"Data MIME Type", "rsocket.data_mime_type", FT_STRING, BASE_NONE, NULL,
         0x0, NULL, HFILL}},
       {&hf_rsocket_req_n,
        {"Request N", "rsocket.request_n", FT_UINT32, BASE_DEC, NULL, 0x0, NULL,
@@ -465,7 +478,7 @@ void proto_register_rsocket(void) {
        {"Resume Token Length", "rsocket.resume.token.len", FT_UINT16, BASE_DEC,
         NULL, 0x0, NULL, HFILL}},
       {&hf_rsocket_resume_token,
-       {"Resume Token", "rsocket.resume.token", FT_STRING, STR_ASCII, NULL, 0x0,
+       {"Resume Token", "rsocket.resume.token", FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL}},
   };
 
